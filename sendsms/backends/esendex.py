@@ -31,6 +31,7 @@ from django.utils.encoding import force_unicode
 import requests
 
 from .base import BaseSmsBackend
+from sendsms.backends import ExternalApiException
 
 ESENDEX_API_URL = 'https://www.esendex.com/secure/messenger/formpost/SendSMS.aspx'
 ESENDEX_USERNAME = getattr(settings, 'ESENDEX_USERNAME', '')
@@ -68,7 +69,7 @@ class SmsBackend(BaseSmsBackend):
 
         response_dict = {}
         for line in response.splitlines():
-            key, value = response.split("=", 1)
+            key, value = line.split("=", 1)
             response_dict[key] = value
         return response_dict
 
@@ -96,25 +97,25 @@ class SmsBackend(BaseSmsBackend):
         response = requests.post(ESENDEX_API_URL, params)
         if response.status_code != 200:
             if not self.fail_silently:
-                raise
+                raise ExternalApiException(response)
             else:
                 return False
         
         if not response.content.startswith('Result'):
             if not self.fail_silently:
-                raise
+                raise ExternalApiException(response.content)
             else: 
                 return False
 
-        response = self._parse_response(response.content)
+        content = self._parse_response(response.content)
         if ESENDEX_SANDBOX and response['Result'] == 'Test':
             return True
         else:
-            if response['Result'] == 'OK':
+            if content['Result'] == 'OK':
                 return True
             else:
                 if not self.fail_silently:
-                    raise
+                    raise ExternalApiException(content)
         
         return False
 
